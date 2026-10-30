@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>AR: atrofdagi obyektlar</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #111;
+                 touch-action: none; font-family: sans-serif; }
+    #cam { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    #view { position: fixed; inset: 0; perspective: 350px; overflow: hidden; }
+    #world { position: absolute; left: 50%; top: 50%; width: 0; height: 0;
+             transform-style: preserve-3d; }
+    .obj { position: absolute; left: 0; top: 0; transform-style: preserve-3d; }
+
+    .card { position: absolute; width: 300px; height: 150px; margin: -75px 0 0 -150px;
+            border: 4px solid #fff; border-radius: 16px; color: #fff; text-align: center;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            font-weight: bold; font-size: 32px; box-shadow: 0 0 20px rgba(0,0,0,.6); }
+    .card small { font-size: 20px; font-weight: normal; margin-top: 6px; }
+
+    .cube { position: absolute; width: 140px; height: 140px; margin: -70px 0 0 -70px;
+            transform-style: preserve-3d; animation: spin 6s linear infinite; }
+    .cube div { position: absolute; width: 140px; height: 140px; box-sizing: border-box;
+                border: 3px solid #fff; color: #fff; font: bold 22px sans-serif;
+                display: flex; align-items: center; justify-content: center; }
+    .cube .a { background: rgba(33,150,243,.8); transform: translateZ(70px); }
+    .cube .b { background: rgba(255,87,34,.8);  transform: rotateY(180deg) translateZ(70px); }
+    .cube .c { background: rgba(76,175,80,.8);  transform: rotateY(90deg) translateZ(70px); }
+    .cube .d { background: rgba(255,193,7,.8);  transform: rotateY(-90deg) translateZ(70px); }
+    .cube .e { background: rgba(156,39,176,.8); transform: rotateX(90deg) translateZ(70px); }
+    .cube .f { background: rgba(0,188,212,.8);  transform: rotateX(-90deg) translateZ(70px); }
+    @keyframes spin { from { transform: rotateX(-20deg) rotateY(0deg); }
+                      to   { transform: rotateX(-20deg) rotateY(360deg); } }
+
+    #cross { position: fixed; left: 50%; top: 50%; width: 24px; height: 24px; margin: -12px;
+             border: 2px solid rgba(255,255,255,.7); border-radius: 50%; z-index: 5;
+             pointer-events: none; }
+    #info { position: fixed; left: 10px; right: 10px; bottom: 90px; z-index: 6; color: #fff;
+            background: rgba(0,0,0,.7); padding: 10px 14px; border-radius: 10px;
+            font-size: 16px; text-align: center; display: none; }
+    #status { position: fixed; top: 8px; left: 8px; z-index: 6; color: #fff; font-size: 13px;
+              background: rgba(0,0,0,.6); padding: 5px 9px; border-radius: 6px; }
+    .btn { position: fixed; bottom: 24px; z-index: 9999; padding: 14px 20px; font-size: 17px;
+           border: 0; border-radius: 10px; background: #2196F3; color: #fff; }
+    #start { left: 50%; transform: translateX(-50%); }
+    #center { right: 16px; display: none; background: #4CAF50; }
+  </style>
+</head>
+<body>
+  <video id="cam" autoplay playsinline muted></video>
+
+  <div id="view">
+    <div id="world">
+      <div class="obj" data-az="0" data-el="0">
+        <div class="cube">
+          <div class="a">AR</div><div class="b">VR</div><div class="c">3D</div>
+          <div class="d">TUIT</div><div class="e">MR</div><div class="f">XR</div>
+        </div>
+      </div>
+      <div class="obj" data-az="60" data-el="30">
+        <div class="card" style="background:rgba(33,150,243,.85)" data-info="AR: haqiqiy dunyo ustiga virtual obyektlar qo'shish">AR<small>Kengaytirilgan reallik</small></div>
+      </div>
+      <div class="obj" data-az="120" data-el="-20">
+        <div class="card" style="background:rgba(255,87,34,.85)" data-info="VR: foydalanuvchini to'liq virtual muhitga olib kirish">VR<small>Virtual reallik</small></div>
+      </div>
+      <div class="obj" data-az="180" data-el="20">
+        <div class="card" style="background:rgba(76,175,80,.85)" data-info="MR: virtual va real obyektlar o'zaro ta'sirlashadi">MR<small>Aralash reallik</small></div>
+      </div>
+      <div class="obj" data-az="240" data-el="-30">
+        <div class="card" style="background:rgba(156,39,176,.85)" data-info="Sensorlar: gyroskop, akselerometr, magnitometr, kamera">Sensorlar<small>Gyroskop, kamera</small></div>
+      </div>
+      <div class="obj" data-az="300" data-el="25">
+        <div class="card" style="background:rgba(255,152,0,.85)" data-info="Qo'llanilishi: ta'lim, tibbiyot, qishloq xo'jaligi, o'yinlar">Qo'llanilishi<small>Ta'lim, tibbiyot</small></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="cross"></div>
+  <div id="status">Boshlash tugmasini bosing</div>
+  <div id="info"></div>
+  <button class="btn" id="start">Boshlash (AR)</button>
+  <button class="btn" id="center">Markazlash</button>
+
+  <script>
+    var R = 500;
+    var world = document.getElementById('world');
+    var status = document.getElementById('status');
+    var info = document.getElementById('info');
+
+    // Obyektlarni atrofga joylash: az (burchak), el (balandlik)
+    document.querySelectorAll('.obj').forEach(function (o) {
+      var az = parseFloat(o.dataset.az), el = parseFloat(o.dataset.el);
+      var y = -Math.sin(el * Math.PI / 180) * R * 0.6;
+      o.style.transform = 'rotateY(' + (-az) + 'deg) translateZ(' + (-R) + 'px) translateY(' + y + 'px)';
+    });
+
+    // Bosilganda ma'lumot ko'rsatish
+    var timer;
+    document.querySelectorAll('.card').forEach(function (c) {
+      c.addEventListener('click', function () {
+        info.textContent = c.dataset.info;
+        info.style.display = 'block';
+        clearTimeout(timer);
+        timer = setTimeout(function () { info.style.display = 'none'; }, 4000);
+      });
+    });
+
+    var h = 0, p = 0, th = 0, tp = 0, offset = 0, sensor = false;
+
+    function onOri(e) {
+      var hd;
+      if (typeof e.webkitCompassHeading === 'number') hd = e.webkitCompassHeading;
+      else if (e.alpha !== null && e.alpha !== undefined) hd = 360 - e.alpha;
+      else return;
+      if (e.beta === null || e.beta === undefined) return;
+      sensor = true;
+      th = hd;
+      tp = Math.max(-80, Math.min(80, e.beta - 90));
+    }
+
+    function loop() {
+      var d = ((th - h + 540) % 360) - 180;
+      h += d * 0.2;
+      p += (tp - p) * 0.2;
+      world.style.transform = 'rotateX(' + p + 'deg) rotateY(' + (h - offset) + 'deg)';
+      status.textContent = (sensor ? 'Sensor: ishlayapti' : 'Sensor: yo\'q (barmoq bilan suring)') +
+                           ' | yo\'nalish: ' + Math.round(((h - offset) % 360 + 360) % 360) + '°';
+      requestAnimationFrame(loop);
+    }
+    loop();
+
+    // Sensor ishlamasa: barmoq bilan aylantirish
+    var drag = false, lx = 0;
+    document.getElementById('view').addEventListener('pointerdown', function (e) { drag = true; lx = e.clientX; });
+    window.addEventListener('pointerup', function () { drag = false; });
+    window.addEventListener('pointermove', function (e) {
+      if (!drag || sensor) return;
+      offset -= (e.clientX - lx) * 0.4;
+      lx = e.clientX;
+    });
+
+    document.getElementById('center').addEventListener('click', function () { offset = h; });
+
+    document.getElementById('start').addEventListener('click', async function () {
+      var btn = this;
+      // iPhone uchun sensor ruxsati (bosish paytida birinchi so'raladi)
+      try {
+        if (typeof DeviceOrientationEvent !== 'undefined' &&
+            typeof DeviceOrientationEvent.requestPermission === 'function') {
+          await DeviceOrientationEvent.requestPermission();
+        }
+      } catch (e) {}
+      if ('ondeviceorientationabsolute' in window) {
+        window.addEventListener('deviceorientationabsolute', onOri, true);
+      }
+      window.addEventListener('deviceorientation', function (e) {
+        if (!('ondeviceorientationabsolute' in window)) onOri(e);
+      }, true);
+
+      try {
+        var stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } }, audio: false
+        });
+        document.getElementById('cam').srcObject = stream;
+        btn.style.display = 'none';
+        document.getElementById('center').style.display = 'block';
+      } catch (e) {
+        alert('Kamera xatosi: ' + e.message);
+      }
+    });
+  </script>
+</body>
+</html>
